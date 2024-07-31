@@ -15,7 +15,7 @@ echo "export PATH=$PATH:/usr/local/go/bin:~/go/bin" >> ~/.bash_profile
 source $HOME/.bash_profile
 [ ! -d ~/go/bin ] && mkdir -p ~/go/bin
 
-read -p "Enter your wallet address: " WALLET
+read -p "Enter your name wallet: " WALLET
 read -p "Enter your moniker: " MONIKER
 read -p "Enter your port number: " EMPED_PORT
 echo "export WALLET=\"$WALLET\"" >> $HOME/.bash_profile

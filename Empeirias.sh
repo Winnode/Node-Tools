@@ -102,7 +102,7 @@ sudo tee /etc/systemd/system/emped.service > /dev/null <<EOF
 Description=empeiria node
 After=network-online.target
 [Service]
-User=$USER
+User=root
 WorkingDirectory=$HOME/.empe-chain
 ExecStart=$(which emped) start --home $HOME/.empe-chain
 Restart=on-failure

@@ -30,12 +30,12 @@ source \$HOME/.bash_profile
 go version
 
 echo "Building binary from repository..."
-cd \$HOME
+cd $HOME
 rm -rf symphony
-git clone https://github.com/Orchestra-Labs/symphony symphony
+git clone https://github.com/Orchestra-Labs/symphony
 cd symphony
-git checkout 0.2.1
-make install
+git checkout v0.2.1
+make build
 
 echo "Enter your node moniker (name):"
 read MONIKER
@@ -43,12 +43,12 @@ echo "Initializing node with moniker: \$MONIKER"
 symphonyd init \$MONIKER --chain-id symphony-testnet-2
 
 echo "Configuring node settings..."
-symphonyd config chain-id symphony-testnet-2
+symphonyd init $MONIKER --chain-id symphony-testnet-2
 symphonyd config keyring-backend file
 
 echo "Adding genesis file and addrbook..."
-curl -Ls https://snapshots.revonode.com/symphony/genesis.json > \$HOME/.symphonyd/config/genesis.json
-curl -Ls https://snapshots.revonode.com/symphony/addrbook.json > \$HOME/.symphonyd/config/addrbook.json
+sudo ln -s $HOME/.symphonyd/cosmovisor/genesis $HOME/.symphonyd/cosmovisor/current -f
+sudo ln -s $HOME/.symphonyd/cosmovisor/current/bin/symphonyd /usr/local/bin/symphonyd -f
 
 echo "Configuring seeds and peers..."
 SEEDS="a68147995f2a2adf1cba1a43524b833fb66917a8@symphony.revonode.com:10656"
@@ -56,7 +56,7 @@ PEERS="\$(curl -sS https://rpc.symphony.revonode.com/net_info | jq -r '.result.p
 sed -i -e "s|^seeds *=.*|seeds = '\$SEEDS'|; s|^persistent_peers *=.*|persistent_peers = '\$PEERS'|" \$HOME/.symphonyd/config/config.toml
 
 echo "Configuring gas prices..."
-sed -i -e "s/^minimum-gas-prices *=.*/minimum-gas-prices = \"0note\"/" \$HOME/.symphonyd/config/app.toml
+sed -i -e "s|^minimum-gas-prices *=.*|minimum-gas-prices = \"0note\"|" $HOME/.symphonyd/config/app.toml
 
 echo "Configuring custom pruning..."
 sed -i \
@@ -64,19 +64,25 @@ sed -i \
   -e 's|^pruning-keep-recent *=.*|pruning-keep-recent = "100"|' \
   -e 's|^pruning-keep-every *=.*|pruning-keep-every = "0"|' \
   -e 's|^pruning-interval *=.*|pruning-interval = "19"|' \
-  \$HOME/.symphonyd/config/app.toml
+  $HOME/.symphonyd/config/app.toml
 
 echo "Creating service file..."
-sudo tee /etc/systemd/system/symphonyd.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/symphony.service > /dev/null << EOF
 [Unit]
 Description=symphony node service
 After=network-online.target
+ 
 [Service]
 User=$USER
-ExecStart=$(which symphonyd) start
-Restart=always
-RestartSec=3
+ExecStart=$(which cosmovisor) run start
+Restart=on-failure
+RestartSec=10
 LimitNOFILE=65535
+Environment="DAEMON_HOME=$HOME/.symphonyd"
+Environment="DAEMON_NAME=symphonyd"
+Environment="UNSAFE_SKIP_BACKUP=true"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:$HOME/.symphonyd/cosmovisor/current/bin"
+ 
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -86,8 +92,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable symphonyd
 
 echo "Downloading latest snapshot..."
-curl -L https://snapshots.revonode.com/symphony/symphony-latest.tar.lz4 | tar -Ilz4 -xf - -C \$HOME/.symphonyd
-[[ -f \$HOME/.symphonyd/data/upgrade-info.json ]] && cp \$HOME/.symphonyd/data/upgrade-info.json \$HOME/.symphonyd/cosmovisor/genesis/upgrade-info.json
+sudo apt update
+sudo apt install lz4
+sudo systemctl stop symphonyd
+symphonyd tendermint unsafe-reset-all --home $HOME/.symphonyd --keep-addr-book
+curl -o - -L https://snapshots.polkachu.com/testnet-snapshots/symphony/symphony_172236.tar.lz4 | lz4 -c -d - | tar -x -C $HOME/.symphonyd
+
 
 echo "Starting node..."
 sudo systemctl start symphonyd && sudo journalctl -fu symphonyd -o cat
